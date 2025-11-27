@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi App de Progresos</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial; }
+        body { background: #667eea; min-height: 100vh; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 15px; padding: 30px; }
+        h1 { text-align: center; color: #333; margin-bottom: 30px; }
+        .section { margin-bottom: 30px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px; }
+        input, button { padding: 12px; margin: 5px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+        button { background: #667eea; color: white; border: none; cursor: pointer; }
+        .progress-item { background: #f9f9f9; padding: 15px; margin: 10px 0; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Mi App de Progresos</h1>
+        
+        <!-- Sección Login -->
+        <div id="login-section" class="section">
+            <h2>🔐 Iniciar Sesión</h2>
+            <input type="email" id="email" placeholder="Tu email" value="test@ejemplo.com">
+            <input type="password" id="password" placeholder="Contraseña" value="123456">
+            <button onclick="registrar()">Registrarse</button>
+            <button onclick="login()">Entrar</button>
+        </div>
+        
+        <!-- Sección App -->
+        <div id="app-section" class="section" style="display:none;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <span id="user-email"></span>
+                <button onclick="logout()" style="background: #ff4757;">Cerrar Sesión</button>
+            </div>
+            
+            <h2>➕ Agregar Progreso</h2>
+            <input type="number" id="progreso" placeholder="Ej: 75.5">
+            <input type="text" id="nota" placeholder="Nota opcional">
+            <button onclick="agregarProgreso()">Guardar</button>
+            
+            <h2>📈 Tus Progresos</h2>
+            <div id="lista-progresos">Cargando...</div>
+        </div>
+    </div>
+
+    <script>
+        // ✅ CONFIGURACIÓN CORRECTA - ESTO SÍ FUNCIONARÁ
+        const supabaseUrl = 'https://qjzcxceofzcqhovsolau.supabase.co';
+        const supabaseKey = 'sb_publishable_w3wtDAeKqklp8n1ezZhVyQ_q_lrIa3V';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        // Funciones
+        async function registrar() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            const { user, error } = await supabase.auth.signUp({ email, password });
+            if (error) alert('Error: ' + error.message);
+            else alert('¡Registrado! Ahora entra.');
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            const { user, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) alert('Error: ' + error.message);
+            else {
+                document.getElementById('login-section').style.display = 'none';
+                document.getElementById('app-section').style.display = 'block';
+                document.getElementById('user-email').textContent = 'Usuario: ' + user.email;
+                cargarProgresos();
+                escucharCambios();
+            }
+        }
+
+        async function logout() {
+            await supabase.auth.signOut();
+            document.getElementById('login-section').style.display = 'block';
+            document.getElementById('app-section').style.display = 'none';
+        }
+
+        async function agregarProgreso() {
+            const progreso = document.getElementById('progreso').value;
+            const nota = document.getElementById('nota').value;
+            
+            const { data, error } = await supabase.from('progress').insert([{ 
+                valor_progreso: progreso, notas: nota 
+            }]);
+            
+            if (error) alert('Error: ' + error.message);
+            else {
+                document.getElementById('progreso').value = '';
+                document.getElementById('nota').value = '';
+            }
+        }
+
+        async function cargarProgresos() {
+            const { data, error } = await supabase.from('progress').select('*').order('fecha', { ascending: false });
+            if (!error) {
+                const lista = document.getElementById('lista-progresos');
+                lista.innerHTML = data.map(item => 
+                    `<div class="progress-item">📅 ${item.fecha}: ${item.valor_progreso} - ${item.notas || ''}</div>`
+                ).join('');
+            }
+        }
+
+        function escucharCambios() {
+            supabase.channel('cambios-en-vivo')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'progress' }, () => {
+                    cargarProgresos();
+                    alert('¡Nuevos datos disponibles!');
+                })
+                .subscribe();
+        }
+
+        // Verificar si ya está logueado
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (session) {
+                document.getElementById('login-section').style.display = 'none';
+                document.getElementById('app-section').style.display = 'block';
+                document.getElementById('user-email').textContent = 'Usuario: ' + session.user.email;
+                cargarProgresos();
+                escucharCambios();
+            }
+        });
+    </script>
+</body>
+</html>
