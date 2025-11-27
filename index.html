@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi App de Progresos</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }
+        
+        input, button {
+            padding: 12px 15px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        input {
+            width: 200px;
+            background: white;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .progress-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .user-info {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .notification {
+            background: #4CAF50;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+            display: none;
+        }
+        
+        .logout-btn {
+            background: #ff4757;
+            margin-left: 10px;
+        }
+        
+        .error {
+            background: #ff4757;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Mi App de Progresos</h1>
+        
+        <!-- Notificación -->
+        <div id="notification" class="notification"></div>
+        
+        <!-- Sección de Login -->
+        <div id="login-section" class="section">
+            <h2>🔐 Iniciar Sesión / Registrarse</h2>
+            <div>
+                <input type="email" id="email" placeholder="Tu email" value="test@ejemplo.com">
+                <input type="password" id="password" placeholder="Contraseña" value="123456">
+                <button onclick="registrar()">Registrarse</button>
+                <button onclick="login()">Entrar</button>
+            </div>
+        </div>
+        
+        <!-- Sección Principal de la App -->
+        <div id="app-section" class="section" style="display:none;">
+            <div class="user-info">
+                <span id="user-email"></span>
+                <button class="logout-btn" onclick="logout()">Cerrar Sesión</button>
+            </div>
+            
+            <h2>➕ Agregar Progreso</h2>
+            <div>
+                <input type="number" id="progreso" placeholder="Ej: 75.5" step="0.1">
+                <input type="text" id="nota" placeholder="Nota opcional">
+                <button onclick="agregarProgreso()">Guardar Progreso</button>
+            </div>
+            
+            <h2>📈 Tus Progresos</h2>
+            <div id="lista-progresos">
+                <p>Cargando...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =============================================
+        // CONFIGURACIÓN CON TU API KEY
+        // =============================================
+        const supabaseUrl = 'https://qjzcxceofzcqhovsolau.supabase.co';
+        const supabaseKey = 'sb_publishable_w3wtDAeKqklp8n1ezZhVyQ_q_lrIa3V';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        // Mostrar notificación
+        function mostrarNotificacion(mensaje, tipo = 'success') {
+            const notificacion = document.getElementById('notification');
+            notificacion.textContent = mensaje;
+            notificacion.style.display = 'block';
+            notificacion.style.background = tipo === 'error' ? '#ff4757' : '#4CAF50';
+            
+            setTimeout(() => {
+                notificacion.style.display = 'none';
+            }, 3000);
+        }
+
+        // Registrar nuevo usuario
+        async function registrar() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                mostrarNotificacion('Por favor completa todos los campos', 'error');
+                return;
+            }
+            
+            const { data, error } = await supabase.auth.signUp({
+                email: email,
+                password: password
+            });
+            
+            if (error) {
+                mostrarNotificacion('Error: ' + error.message, 'error');
+            } else {
+                mostrarNotificacion('¡Registrado correctamente! Ahora puedes entrar.');
+            }
+        }
+
+        // Login de usuario
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                mostrarNotificacion('Por favor completa todos los campos', 'error');
+                return;
+            }
+            
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: password
+            });
+            
+            if (error) {
+                mostrarNotificacion('Error: ' + error.message, 'error');
+            } else {
+                document.getElementById('login-section').style.display = 'none';
+                document.getElementById('app-section').style.display = 'block';
+                document.getElementById('user-email').textContent = 'Usuario: ' + data.user.email;
+                cargarProgresos();
+                escucharCambios();
+                mostrarNotificacion('¡Bienvenido!');
+            }
+        }
+
+        // Logout
+        async function logout() {
+            await supabase.auth.signOut();
+            document.getElementById('login-section').style.display = 'block';
+            document.getElementById('app-section').style.display = 'none';
+            mostrarNotificacion('Sesión cerrada');
+        }
+
+        // Agregar nuevo progreso - CORREGIDA
+        async function agregarProgreso() {
+            // Obtener el usuario actual
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            if (!user) {
+                mostrarNotificacion('Error: No hay usuario logueado', 'error');
+                return;
+            }
+
+            const progreso = document.getElementById('progreso').value;
+            const nota = document.getElementById('nota').value;
+            
+            if (!progreso) {
+                mostrarNotificacion('Por favor ingresa un valor de progreso', 'error');
+                return;
+            }
+            
+            const { data, error } = await supabase
+                .from('progress')
+                .insert([{ 
+                    user_id: user.id,  // ✅ INCLUIR EL USER_ID
+                    valor_progreso: parseFloat(progreso), 
+                    notas: nota 
+                }]);
+            
+            if (error) {
+                mostrarNotificacion('Error al guardar: ' + error.message, 'error');
+            } else {
+                document.getElementById('progreso').value = '';
+                document.getElementById('nota').value = '';
+                mostrarNotificacion('¡Progreso guardado!');
+            }
+        }
+
+        // Cargar progresos del usuario - CORREGIDA
+        async function cargarProgresos() {
+            // Obtener el usuario actual
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            if (!user) {
+                document.getElementById('lista-progresos').innerHTML = '<p>No hay usuario logueado</p>';
+                return;
+            }
+
+            const { data, error } = await supabase
+                .from('progress')
+                .select('*')
+                .eq('user_id', user.id)  // ✅ FILTRAR POR USUARIO ACTUAL
+                .order('creado_en', { ascending: false });
+            
+            if (error) {
+                console.error('Error cargando progresos:', error);
+                document.getElementById('lista-progresos').innerHTML = '<p>Error cargando datos</p>';
+            } else {
+                const lista = document.getElementById('lista-progresos');
+                if (data.length === 0) {
+                    lista.innerHTML = '<p>No hay progresos registrados aún.</p>';
+                } else {
+                    lista.innerHTML = data.map(item => 
+                        `<div class="progress-item">
+                            <strong>📅 ${new Date(item.creado_en).toLocaleDateString()}</strong><br>
+                            <strong>Progreso:</strong> ${item.valor_progreso}<br>
+                            ${item.notas ? `<strong>Nota:</strong> ${item.notas}` : ''}
+                        </div>`
+                    ).join('');
+                }
+            }
+        }
+
+        // Escuchar cambios en tiempo real - CORREGIDA
+        function escucharCambios() {
+            supabase
+                .channel('cambios-en-vivo')
+                .on('postgres_changes', 
+                    { 
+                        event: '*', 
+                        schema: 'public', 
+                        table: 'progress' 
+                    }, 
+                    (payload) => {
+                        console.log('Cambio detectado:', payload);
+                        mostrarNotificacion('¡Datos actualizados en tiempo real!');
+                        cargarProgresos();
+                    }
+                )
+                .subscribe();
+        }
+
+        // Verificar si el usuario ya está logueado al cargar la página
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (session) {
+                document.getElementById('login-section').style.display = 'none';
+                document.getElementById('app-section').style.display = 'block';
+                document.getElementById('user-email').textContent = 'Usuario: ' + session.user.email;
+                cargarProgresos();
+                escucharCambios();
+            }
+        });
+
+        // Cargar datos iniciales si ya está logueado
+        window.addEventListener('DOMContentLoaded', () => {
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session) {
+                    document.getElementById('login-section').style.display = 'none';
+                    document.getElementById('app-section').style.display = 'block';
+                    document.getElementById('user-email').textContent = 'Usuario: ' + session.user.email;
+                    cargarProgresos();
+                    escucharCambios();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
